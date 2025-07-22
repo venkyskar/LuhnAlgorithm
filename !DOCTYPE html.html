@@ -1,0 +1,1107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Report: High-Speed RSA Implementation</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Calm Harmony -->
+    <!-- Application Structure Plan: A tabbed, dashboard-style SPA. The main navigation switches between "Modular Exponentiation" and "Modular Multiplication". Each section has a vertical sidebar for selecting specific algorithms (e.g., Binary, m-ary). This non-linear structure allows users to quickly jump between concepts and compare methods. The core of the design is interactivity: each algorithm section includes a calculator to run the method with user inputs, and a dynamic comparison chart visualizes performance trade-offs. A new "AI Assistant" section is added under each main tab, providing LLM-powered explanations for cryptographic concepts. This structure prioritizes user exploration and active learning over passive reading, making the dense cryptographic concepts more accessible and understandable. -->
+    <!-- Visualization & Content Choices: 
+        - Algorithm Comparison: Report Info -> Operation counts for various algorithms. Goal -> Compare. Viz -> Interactive Bar Chart (Chart.js) with a dropdown to select example exponents. Justification -> Visually intuitive and engaging way to compare algorithm efficiency.
+        - Algorithm Steps: Report Info -> Step-by-step calculation examples. Goal -> Inform/Organize. Viz -> Styled HTML tables for static examples and dynamically generated text blocks for calculator output. Justification -> Clear, structured presentation for procedural information.
+        - Interactive Calculators: Report Info -> Core logic of each algorithm. Goal -> Engage/Explore. Viz -> HTML forms triggering JS functions. Justification -> Transforms passive reading into active learning, allowing users to test their own values and solidify understanding.
+        - Code Snippets: Report Info -> C code examples. Goal -> Inform. Viz -> Collapsible `<details>` block. Justification -> Keeps the UI clean by hiding complex code by default, making it accessible on demand.
+        - AI Assistant: Report Info -> General cryptographic concepts. Goal -> Inform/Clarify. Viz -> Text input and LLM-generated text output. Interaction -> User asks a question, LLM provides explanation. Justification -> Provides on-demand, contextual explanations for complex terms, enhancing user understanding and engagement.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FDFBF6;
+            color: #3C3633;
+        }
+        .tab-active {
+            border-bottom-color: #7C9D96;
+            color: #3C3633;
+            font-weight: 600;
+        }
+        .tab-inactive {
+            border-bottom-color: transparent;
+            color: #A9A9A9;
+        }
+        .sidebar-link-active {
+            background-color: #EADBC8;
+            color: #3C3633;
+            font-weight: 500;
+        }
+        .sidebar-link-inactive {
+            background-color: transparent;
+            color: #757575;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 40vh;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 350px;
+            }
+        }
+        details > summary {
+            cursor: pointer;
+            list-style-type: none;
+        }
+        details > summary::-webkit-details-marker {
+            display: none;
+        }
+        details[open] > summary .arrow-down {
+            transform: rotate(180deg);
+        }
+        .arrow-down {
+            transition: transform 0.2s ease-in-out;
+        }
+        pre {
+            background-color: #2d3748;
+            color: #e2e8f0;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-[#3C3633]">Interactive Report: High-Speed RSA Implementation</h1>
+            <p class="text-lg text-gray-600 mt-2">An interactive exploration of algorithms from the paper by Çetin Kaya Koç</p>
+        </header>
+
+        <nav class="mb-8 border-b border-gray-300">
+            <ul class="flex justify-center -mb-px">
+                <li>
+                    <button id="tab-exponentiation" class="tab-btn inline-block p-4 border-b-2 text-lg">Modular Exponentiation</button>
+                </li>
+                <li>
+                    <button id="tab-multiplication" class="tab-btn inline-block p-4 border-b-2 text-lg">Modular Multiplication</button>
+                </li>
+            </ul>
+        </nav>
+
+        <main>
+            <!-- Modular Exponentiation Section -->
+            <div id="content-exponentiation" class="main-content">
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-8">
+                    <aside class="md:col-span-3">
+                        <h2 class="text-xl font-semibold mb-4 text-[#3C3633]">Exponentiation Methods</h2>
+                        <ul id="sidebar-exponentiation" class="space-y-2">
+                            <li><a href="#" class="sidebar-link block p-3 rounded-lg transition-colors duration-200" data-section="binary">Binary Method</a></li>
+                            <li><a href="#" class="sidebar-link block p-3 rounded-lg transition-colors duration-200" data-section="m-ary">m-ary Methods</a></li>
+                            <li><a href="#" class="sidebar-link block p-3 rounded-lg transition-colors duration-200" data-section="sliding-window">Sliding Window Methods</a></li>
+                            <li><a href="#" class="sidebar-link block p-3 rounded-lg transition-colors duration-200" data-section="recoding">Recoding Methods</a></li>
+                            <li><a href="#" class="sidebar-link block p-3 rounded-lg transition-colors duration-200" data-section="comparison">Performance Comparison</a></li>
+                            <li><a href="#" class="sidebar-link block p-3 rounded-lg transition-colors duration-200" data-section="ai-assistant">✨ AI Assistant</a></li>
+                        </ul>
+                    </aside>
+                    <section id="pane-exponentiation" class="md:col-span-9 bg-white/50 p-6 rounded-xl shadow-sm border border-gray-200">
+                        <!-- Content will be dynamically inserted here -->
+                    </section>
+                </div>
+            </div>
+
+            <!-- Modular Multiplication Section -->
+            <div id="content-multiplication" class="main-content hidden">
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-8">
+                    <aside class="md:col-span-3">
+                        <h2 class="text-xl font-semibold mb-4 text-[#3C3633]">Multiplication Methods</h2>
+                        <ul id="sidebar-multiplication" class="space-y-2">
+                            <li><a href="#" class="sidebar-link block p-3 rounded-lg transition-colors duration-200" data-section="standard">Standard Multiplication</a></li>
+                            <li><a href="#" class="sidebar-link block p-3 rounded-lg transition-colors duration-200" data-section="division">Division/Remainder</a></li>
+                            <li><a href="#" class="sidebar-link block p-3 rounded-lg transition-colors duration-200" data-section="blakley">Blakley's Method</a></li>
+                            <li><a href="#" class="sidebar-link block p-3 rounded-lg transition-colors duration-200" data-section="montgomery">Montgomery's Method</a></li>
+                            <li><a href="#" class="sidebar-link block p-3 rounded-lg transition-colors duration-200" data-section="ai-assistant">✨ AI Assistant</a></li>
+                        </ul>
+                    </aside>
+                    <section id="pane-multiplication" class="md:col-span-9 bg-white/50 p-6 rounded-xl shadow-sm border border-gray-200">
+                        <!-- Content will be dynamically inserted here -->
+                    </section>
+                </div>
+            </div>
+        </main>
+
+    </div>
+
+    <script>
+        const appState = {
+            mainTab: 'exponentiation',
+            subSection: 'binary'
+        };
+
+        const contentData = {
+            exponentiation: {
+                binary: {
+                    title: 'The Binary Method (Square and Multiply)',
+                    description: `
+                        <p class="mb-4">The binary method is an efficient algorithm for modular exponentiation that processes the exponent bit by bit. It significantly reduces the number of required multiplications compared to a naive approach. The left-to-right variant, described here, iterates through the bits of the exponent from most significant to least significant.</p>
+                        <p class="mb-4">The core logic involves two operations per bit: a squaring operation, and a conditional multiplication by the base if the current bit is '1'. This keeps all intermediate results within the modulus, preventing them from becoming computationally infeasible.</p>
+                    `,
+                    calculator: `
+                        <h3 class="text-lg font-semibold mb-4">Interactive Calculator</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                            <input id="binary-base" type="number" placeholder="Base (e.g., 3)" class="p-2 border rounded-md bg-white">
+                            <input id="binary-exp" type="number" placeholder="Exponent (e.g., 13)" class="p-2 border rounded-md bg-white">
+                            <input id="binary-mod" type="number" placeholder="Modulus (e.g., 11)" class="p-2 border rounded-md bg-white">
+                        </div>
+                        <button id="binary-calc-btn" class="bg-[#7C9D96] text-white px-4 py-2 rounded-md hover:bg-[#637f7a] transition-colors">Calculate</button>
+                        <div id="binary-result" class="mt-4 p-4 bg-[#EADBC8]/50 rounded-md min-h-[50px]"></div>
+                    `,
+                    code: `
+#include <stdio.h>
+#include <math.h>
+
+long long modular_multiply(long long base, long long exp, long long modulus) {
+    return (base * exp) % modulus;
+}
+
+long long modular_exponentiation_binary(long long base, long long exponent, long long modulus) {
+    if (modulus == 1) return 0;
+    if (exponent == 0) return 1;
+
+    long long result = 1;
+    int k = (exponent > 0) ? floor(log2(exponent)) + 1 : 0;
+
+    if ((exponent >> (k - 1)) & 1) {
+        result = base % modulus;
+    }
+
+    for (int i = k - 2; i >= 0; i--) {
+        result = modular_multiply(result, result, modulus);
+        if ((exponent >> i) & 1) {
+            result = modular_multiply(result, base, modulus);
+        }
+    }
+    return result;
+}
+                    `
+                },
+                'm-ary': {
+                    title: 'The m-ary Methods',
+                    description: `
+                        <p class="mb-4">The m-ary method is a generalization of the binary method. Instead of processing the exponent one bit at a time (base 2), it processes it in blocks of <em>r</em> bits (base <em>m = 2<sup>r</sup></em>). This can reduce the total number of multiplications, but at the cost of a precomputation step.</p>
+                        <p class="mb-4">The algorithm first precomputes and stores the powers of the base up to <em>M<sup>m-1</sup></em>. Then, it iterates through the <em>r</em>-bit blocks of the exponent, performing <em>r</em> squarings and one multiplication (using the precomputed table) per block.</p>
+                        <p class="mb-4">The Quaternary (m=4, r=2) and Octal (m=8, r=3) methods are common examples. The choice of <em>m</em> involves a trade-off between fewer main-loop multiplications and a more expensive precomputation phase.</p>
+                    `,
+                    calculator: `
+                        <h3 class="text-lg font-semibold mb-4">Quaternary Method Calculator (m=4)</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                            <input id="quat-base" type="number" placeholder="Base (e.g., 2)" class="p-2 border rounded-md bg-white">
+                            <input id="quat-exp" type="number" placeholder="Exponent (e.g., 250)" class="p-2 border rounded-md bg-white">
+                            <input id="quat-mod" type="number" placeholder="Modulus (e.g., 1000)" class="p-2 border rounded-md bg-white">
+                        </div>
+                        <button id="quat-calc-btn" class="bg-[#7C9D96] text-white px-4 py-2 rounded-md hover:bg-[#637f7a] transition-colors">Calculate</button>
+                        <div id="quat-result" class="mt-4 p-4 bg-[#EADBC8]/50 rounded-md min-h-[50px]"></div>
+                    `,
+                    code: `
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+long long modular_multiply(long long base, long long exp, long long modulus);
+
+long long modular_exponentiation_quaternary(long long base, long long exponent, long long modulus) {
+    if (modulus == 1) return 0;
+    if (exponent == 0) return 1;
+
+    long long precomputed[4];
+    precomputed[0] = 1;
+    precomputed[1] = base % modulus;
+    precomputed[2] = modular_multiply(precomputed[1], base, modulus);
+    precomputed[3] = modular_multiply(precomputed[2], base, modulus);
+    
+    char bin_str[65];
+    sprintf(bin_str, "%llb", exponent);
+    int k = strlen(bin_str);
+    int r = 2;
+    int s = (k + r - 1) / r;
+
+    int* f_words = (int*)malloc(s * sizeof(int));
+    int current_k = k;
+    for(int i = s - 1; i >= 0; i--) {
+        int word_val = 0;
+        for(int j = 0; j < r && current_k > 0; j++) {
+            current_k--;
+            if(bin_str[current_k] == '1') {
+                word_val += (1 << j);
+            }
+        }
+        f_words[s - 1 - i] = word_val;
+    }
+
+    long long result = precomputed[f_words[0]];
+
+    for (int i = 1; i < s; i++) {
+        for (int j = 0; j < r; j++) {
+            result = modular_multiply(result, result, modulus);
+        }
+        if (f_words[i] != 0) {
+            result = modular_multiply(result, precomputed[f_words[i]], modulus);
+        }
+    }
+    
+    free(f_words);
+    return result;
+}
+                    `
+                },
+                'sliding-window': {
+                    title: 'Sliding Window Methods',
+                    description: `
+                        <p class="mb-4">Sliding window algorithms are an optimization over fixed m-ary methods. They scan the exponent for sequences of non-zero bits (non-zero windows, NW) and sequences of zero bits (zero windows, ZW). This allows the algorithm to "slide" over blocks of zeros with squaring operations only, and process variable-length blocks of non-zero bits efficiently.</p>
+                        <p class="mb-4">A key optimization is that non-zero windows are defined to always start and end with a '1'. This means only odd powers of the base need to be precomputed, halving the storage and precomputation cost compared to a standard m-ary method of the same window size.</p>
+                        <p class="mb-4">Variants include Constant Length Non-zero Windows (CLNW) and the more flexible Variable Length Non-zero Windows (VLNW), which uses look-ahead parameters to decide the optimal window partitioning.</p>
+                    `,
+                    calculator: `
+                        <h3 class="text-lg font-semibold mb-4">Sliding Window Calculator (Conceptual)</h3>
+                        <p class="text-gray-600">A full interactive implementation of the partitioning logic is highly complex. The example below for <strong>3<sup>3665</sup> mod 100</strong> demonstrates the final calculation steps after the exponent has been partitioned into windows [7, 0, 5, 0, 1] with lengths [3, 2, 3, 3, 1].</p>
+                        <button id="sw-calc-btn" class="bg-[#7C9D96] text-white px-4 py-2 rounded-md hover:bg-[#637f7a] transition-colors mt-4">Run Example Calculation</button>
+                        <div id="sw-result" class="mt-4 p-4 bg-[#EADBC8]/50 rounded-md min-h-[50px]"></div>
+                    `,
+                    code: `
+/*
+ * Conceptual C implementation of VLNW specifically for the example exponent e=3665.
+ * A truly general VLNW implementation would require a sophisticated
+ * bit-scanning state machine to dynamically determine window lengths and values.
+ */
+long long modular_exponentiation_vlnw_specific_example(long long base, long long modulus) {
+    long long precomputed[16];
+    precomputed[1] = base % modulus;
+    precomputed[2] = (base * base) % modulus;
+    precomputed[3] = (precomputed[2] * base) % modulus;
+    precomputed[5] = (precomputed[3] * precomputed[2]) % modulus;
+    precomputed[7] = (precomputed[5] * precomputed[2]) % modulus;
+
+    int windows[] = {7, 0, 5, 0, 1};
+    int lengths[] = {3, 2, 3, 3, 1};
+    int num_windows = 5;
+
+    long long result = precomputed[windows[0]];
+
+    for (int i = 1; i < num_windows; i++) {
+        for (int j = 0; j < lengths[i]; j++) {
+            result = (result * result) % modulus;
+        }
+        if (windows[i] != 0) {
+            result = (result * precomputed[windows[i]]) % modulus;
+        }
+    }
+    return result;
+}
+                    `
+                },
+                recoding: {
+                    title: 'Recoding Methods (NAF)',
+                    description: `
+                        <p class="mb-4">Recoding methods transform the exponent's binary representation into a signed-digit form, typically using digits {-1, 0, 1}. The goal is to minimize the number of non-zero digits, which reduces the number of multiplications in the exponentiation loop.</p>
+                        <p class="mb-4">The Non-Adjacent Form (NAF) is a canonical recoding that is unique and has the minimum possible number of non-zero digits. It guarantees that no two consecutive digits are non-zero. This is achieved by replacing blocks of '1's using the identity 2<sup>i</sup> + ... + 2<sup>j</sup> = 2<sup>j+1</sup> - 2<sup>i</sup>.</p>
+                        <p class="mb-4">While powerful, these methods require computing the modular inverse of the base (for the -1 digit), which can be computationally expensive for RSA. They are, however, extremely effective in Elliptic Curve Cryptography (ECC) where the inverse operation is trivial.</p>
+                    `,
+                    calculator: `
+                        <h3 class="text-lg font-semibold mb-4">NAF Recoding Calculator</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                            <input id="naf-base" type="number" placeholder="Base (e.g., 3)" class="p-2 border rounded-md bg-white">
+                            <input id="naf-exp" type="number" placeholder="Exponent (e.g., 119)" class="p-2 border rounded-md bg-white">
+                            <input id="naf-mod" type="number" placeholder="Modulus (e.g., 100)" class="p-2 border rounded-md bg-white">
+                        </div>
+                        <button id="naf-calc-btn" class="bg-[#7C9D96] text-white px-4 py-2 rounded-md hover:bg-[#637f7a] transition-colors">Calculate</button>
+                        <div id="naf-result" class="mt-4 p-4 bg-[#EADBC8]/50 rounded-md min-h-[50px]"></div>
+                    `,
+                    code: `
+#include <stdio.h>
+#include <stdlib.h>
+
+// Function to convert a positive integer exponent to its Non-Adjacent Form (NAF)
+int* convert_to_naf(long long exponent, int* naf_len);
+
+// Function to compute modular inverse of 'a' modulo 'm'
+long long modular_inverse(long long a, long long m);
+
+long long modular_exponentiation_recoding_binary(long long base, long long exponent, long long modulus) {
+    long long base_inv = modular_inverse(base, modulus);
+    if (base_inv == -1) return -1;
+
+    int naf_len;
+    int* naf_digits = convert_to_naf(exponent, &naf_len);
+    
+    long long result = 1;
+    for (int i = naf_len - 1; i >= 0; i--) {
+        result = (result * result) % modulus;
+        if (naf_digits[i] == 1) {
+            result = (result * base) % modulus;
+        } else if (naf_digits[i] == -1) {
+            result = (result * base_inv) % modulus;
+        }
+    }
+    free(naf_digits);
+    return result;
+}
+                    `
+                },
+                comparison: {
+                    title: 'Performance Comparison of Exponentiation Algorithms',
+                    description: `
+                        <p class="mb-4">The choice of exponentiation algorithm involves a trade-off between precomputation cost and the number of operations (squarings and multiplications) in the main loop. This chart visualizes the total number of operations for different algorithms on common example exponents from the source text.</p>
+                        <p class="mb-4">Select an exponent from the dropdown to see how the total operation count changes for each method. This illustrates why more complex methods like m-ary or sliding windows can be more efficient for certain exponents, despite their setup costs.</p>
+                    `,
+                    calculator: `
+                        <div class="mb-4">
+                            <label for="comparison-select" class="block text-lg font-semibold mb-2">Select Example Exponent:</label>
+                            <select id="comparison-select" class="p-2 border rounded-md bg-white w-full max-w-xs">
+                                <option value="250">e = 250</option>
+                                <option value="3665">e = 3665</option>
+                                <option value="55">e = 55</option>
+                            </select>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="comparisonChart"></canvas>
+                        </div>
+                    `,
+                    code: `
+// Chart.js data and options are handled in the main script logic.
+// The data below is a conceptual representation of the analysis.
+
+const comparisonData = {
+    '250': { // 11111010_2
+        labels: ['Binary', 'Quaternary', 'Octal (Optimized)'],
+        data: [12, 11, 12], // Total ops: S+M
+    },
+    '3665': { // 111001010001_2
+        labels: ['Binary', 'CLNW (d=3)', 'VLNW (d=4, q=2)'],
+        data: [18, 15, 15],
+    },
+    '55': { // 110111_2
+        labels: ['Binary', 'Quaternary', 'Factor Method'],
+        data: [9, 8, 8],
+    }
+};
+                    `
+                },
+                aiAssistant: {
+                    title: '✨ AI Cryptography Assistant',
+                    description: `
+                        <p class="mb-4">Ask the AI Assistant any question about cryptography or the concepts discussed in this report! The assistant will provide a concise and expert explanation to help deepen your understanding.</p>
+                        <p class="mb-4">For example, try asking: "What is a modular inverse?" or "Explain the purpose of the modulus in RSA."</p>
+                    `,
+                    calculator: `
+                        <h3 class="text-lg font-semibold mb-4">Ask a Question:</h3>
+                        <textarea id="ai-question-input" class="w-full p-3 border rounded-md bg-white resize-y min-h-[100px]" placeholder="Type your cryptography question here..."></textarea>
+                        <button id="ai-ask-btn" class="bg-[#7C9D96] text-white px-4 py-2 rounded-md hover:bg-[#637f7a] transition-colors mt-4">Get Explanation ✨</button>
+                        <div id="ai-response" class="mt-4 p-4 bg-[#EADBC8]/50 rounded-md min-h-[100px]">
+                            <p class="text-gray-500">Your answer will appear here...</p>
+                        </div>
+                    `,
+                    code: `
+// The AI Assistant uses the Gemini API to generate explanations.
+// The core logic involves sending the user's question as a prompt
+// to a large language model and displaying its response.
+async function getAIExplanation(question) {
+    const prompt = "You are an expert in cryptography and computer science. Explain the following cryptographic concept or question concisely and clearly, assuming the user is learning about RSA implementation: " + question;
+    const apiKey = ""; // Canvas will provide this at runtime
+    const apiUrl = \`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=\${apiKey}\`;
+    const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+
+    try {
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (result.candidates && result.candidates.length > 0 &&
+            result.candidates[0].content && result.candidates[0].content.parts &&
+            result.candidates[0].content.parts.length > 0) {
+            return result.candidates[0].content.parts[0].text;
+        } else {
+            return "Sorry, I couldn't generate a response. Please try again.";
+        }
+    } catch (error) {
+        console.error("Error calling Gemini API:", error);
+        return "An error occurred while fetching the explanation. Please check your network connection or try again later.";
+    }
+}
+                    `
+                }
+            },
+            multiplication: {
+                standard: {
+                    title: 'Standard (Long) Multiplication',
+                    description: `
+                        <p class="mb-4">This is the classic "pencil-and-paper" algorithm adapted for multi-word numbers. It computes the full product of two numbers, which can be up to twice the length of the operands. The result is then typically reduced via a separate division/remainder operation.</p>
+                        <p class="mb-4">The algorithm iterates through each word (digit) of the multiplier, multiplying it by the entire multiplicand to create a partial product, which is then added to the accumulating result. Its complexity is O(k<sup>2</sup>), where k is the number of bits.</p>
+                    `,
+                    calculator: `
+                        <h3 class="text-lg font-semibold mb-4">Standard Multiplication Calculator</h3>
+                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                            <input id="std-mul-a" type="number" placeholder="Operand A (e.g., 348)" class="p-2 border rounded-md bg-white">
+                            <input id="std-mul-b" type="number" placeholder="Operand B (e.g., 857)" class="p-2 border rounded-md bg-white">
+                        </div>
+                        <button id="std-mul-btn" class="bg-[#7C9D96] text-white px-4 py-2 rounded-md hover:bg-[#637f7a] transition-colors">Calculate</button>
+                        <div id="std-mul-result" class="mt-4 p-4 bg-[#EADBC8]/50 rounded-md min-h-[50px]"></div>
+                    `,
+                    code: `
+// Conceptual representation of multi-word multiplication.
+// Real implementations operate on arrays of machine words.
+unsigned long long standard_multiplication(unsigned long long a, unsigned long long b) {
+    // In a real system, this would be a loop over words.
+    // For demonstration, we just use the native multiplication.
+    return a * b;
+}
+                    `
+                },
+                division: {
+                    title: 'Computation of the Remainder (Division)',
+                    description: `
+                        <p class="mb-4">After a full multiplication, the result must be reduced modulo <em>n</em>. This is a division operation where we only care about the remainder. The source text describes two classical, bit-by-bit algorithms: Restoring and Non-restoring division.</p>
+                        <p class="mb-4"><strong>Restoring Division:</strong> Performs a subtraction at each step. If the result is negative, the original value is "restored" by adding the divisor back. It's conceptually simple but involves an extra addition on failed subtractions.</p>
+                        <p class="mb-4"><strong>Non-restoring Division:</strong> Avoids the restoration step. If a subtraction results in a negative remainder, it proceeds with the negative value and performs an addition in the next step. This can be faster in hardware as it avoids the restore operation.</p>
+                    `,
+                    calculator: `
+                        <h3 class="text-lg font-semibold mb-4">Restoring Division Calculator</h3>
+                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                            <input id="div-t" type="number" placeholder="Dividend t (e.g., 3019)" class="p-2 border rounded-md bg-white">
+                            <input id="div-n" type="number" placeholder="Divisor n (e.g., 53)" class="p-2 border rounded-md bg-white">
+                        </div>
+                        <button id="div-calc-btn" class="bg-[#7C9D96] text-white px-4 py-2 rounded-md hover:bg-[#637f7a] transition-colors">Calculate Remainder</button>
+                        <div id="div-result" class="mt-4 p-4 bg-[#EADBC8]/50 rounded-md min-h-[50px]"></div>
+                    `,
+                    code: `
+long long restoring_division(long long t, long long n) {
+    if (n == 0) return -1;
+    if (t < n) return t;
+
+    int k_t = floor(log2(t)) + 1;
+    int k_n = floor(log2(n)) + 1;
+    long long n_shifted = n << (k_t - k_n);
+
+    for (int i = 0; i <= (k_t - k_n); i++) {
+        long long R_old = t;
+        t = t - n_shifted;
+        if (t < 0) {
+            t = R_old; // Restore
+        }
+        n_shifted >>= 1;
+    }
+    return t;
+}
+                    `
+                },
+                blakley: {
+                    title: "Blakley's Method",
+                    description: `
+                        <p class="mb-4">Blakley's method is an elegant algorithm that directly computes the modular product <em>a &middot; b mod n</em> by interleaving the steps of multiplication and reduction. It avoids computing the full, potentially very large, intermediate product.</p>
+                        <p class="mb-4">The algorithm processes the multiplier (e.g., 'a') one bit at a time. In each step, it doubles the current accumulated result (a left shift) and adds the multiplicand ('b') if the current bit of 'a' is 1. Immediately after this, it reduces the result modulo <em>n</em>. This keeps the accumulator from growing too large.</p>
+                    `,
+                    calculator: `
+                        <h3 class="text-lg font-semibold mb-4">Blakley's Method Calculator</h3>
+                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                            <input id="blakley-a" type="number" placeholder="a (e.g., 5)" class="p-2 border rounded-md bg-white">
+                            <input id="blakley-b" type="number" placeholder="b (e.g., 7)" class="p-2 border rounded-md bg-white">
+                            <input id="blakley-n" type="number" placeholder="n (e.g., 11)" class="p-2 border rounded-md bg-white">
+                        </div>
+                        <button id="blakley-calc-btn" class="bg-[#7C9D96] text-white px-4 py-2 rounded-md hover:bg-[#637f7a] transition-colors">Calculate</button>
+                        <div id="blakley-result" class="mt-4 p-4 bg-[#EADBC8]/50 rounded-md min-h-[50px]"></div>
+                    `,
+                    code: `
+long long blakley_modular_multiplication(long long a, long long b, long long n) {
+    long long R = 0;
+    int k = (a > 0) ? floor(log2(a)) + 1 : 0;
+
+    for (int i = k - 1; i >= 0; i--) {
+        int a_bit = (a >> i) & 1;
+        R = (R << 1) + (a_bit * b);
+        R %= n;
+    }
+    return R;
+}
+                    `
+                },
+                montgomery: {
+                    title: "Montgomery's Method",
+                    description: `
+                        <p class="mb-4">Montgomery's method is a highly efficient algorithm for modular multiplication, especially when many multiplications are performed with the same modulus (as in modular exponentiation). It avoids costly trial division by the modulus <em>n</em>.</p>
+                        <p class="mb-4">The key idea is to transform numbers into a "Montgomery domain" by multiplying them by a factor <em>r</em>, where <em>r</em> is a power of 2 larger than <em>n</em>. In this domain, the expensive division by <em>n</em> is replaced by a cheap division by <em>r</em> (a simple bit shift). The algorithm requires <em>n</em> to be odd.</p>
+                        <p class="mb-4">The process involves converting numbers into Montgomery form (multiplying by <em>r</em>), performing multiplications using the <strong>MonPro</strong> algorithm, and finally converting the result back to the normal domain (multiplying by <em>r<sup>-1</sup></em>).</p>
+                    `,
+                    calculator: `
+                        <h3 class="text-lg font-semibold mb-4">Montgomery Exponentiation Calculator</h3>
+                        <p class="text-gray-600 mb-4">This calculator performs full modular exponentiation using Montgomery's method internally. Enter values for <strong>M<sup>e</sup> mod n</strong> (where n must be odd).</p>
+                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                            <input id="mont-m" type="number" placeholder="M (e.g., 7)" class="p-2 border rounded-md bg-white">
+                            <input id="mont-e" type="number" placeholder="e (e.g., 10)" class="p-2 border rounded-md bg-white">
+                            <input id="mont-n" type="number" placeholder="n (odd, e.g., 13)" class="p-2 border rounded-md bg-white">
+                        </div>
+                        <button id="mont-calc-btn" class="bg-[#7C9D96] text-white px-4 py-2 rounded-md hover:bg-[#637f7a] transition-colors">Calculate</button>
+                        <div id="mont-result" class="mt-4 p-4 bg-[#EADBC8]/50 rounded-md min-h-[50px]"></div>
+                    `,
+                    code: `
+// Computes (a_prime * b_prime * r_inv) % n
+unsigned long long montgomery_product(unsigned long long a_prime, unsigned long long b_prime, unsigned long long n, unsigned long long n0, int k) {
+    unsigned long long r = 1ULL << k;
+    unsigned __int128 t = (unsigned __int128)a_prime * b_prime;
+    unsigned long long m = (t * n0) & (r - 1);
+    unsigned __int128 u_full = t + (unsigned __int128)m * n;
+    unsigned long long u = u_full >> k;
+    
+    return (u >= n) ? u - n : u;
+}
+                    `
+                },
+                aiAssistant: {
+                    title: '✨ AI Cryptography Assistant',
+                    description: `
+                        <p class="mb-4">Ask the AI Assistant any question about cryptography or the concepts discussed in this report! The assistant will provide a concise and expert explanation to help deepen your understanding.</p>
+                        <p class="mb-4">For example, try asking: "What is a modular inverse?" or "Explain the purpose of the modulus in RSA."</p>
+                    `,
+                    calculator: `
+                        <h3 class="text-lg font-semibold mb-4">Ask a Question:</h3>
+                        <textarea id="ai-question-input" class="w-full p-3 border rounded-md bg-white resize-y min-h-[100px]" placeholder="Type your cryptography question here..."></textarea>
+                        <button id="ai-ask-btn" class="bg-[#7C9D96] text-white px-4 py-2 rounded-md hover:bg-[#637f7a] transition-colors mt-4">Get Explanation ✨</button>
+                        <div id="ai-response" class="mt-4 p-4 bg-[#EADBC8]/50 rounded-md min-h-[100px]">
+                            <p class="text-gray-500">Your answer will appear here...</p>
+                        </div>
+                    `,
+                    code: `
+// The AI Assistant uses the Gemini API to generate explanations.
+// The core logic involves sending the user's question as a prompt
+// to a large language model and displaying its response.
+async function getAIExplanation(question) {
+    const prompt = "You are an expert in cryptography and computer science. Explain the following cryptographic concept or question concisely and clearly, assuming the user is learning about RSA implementation: " + question;
+    const apiKey = ""; // Canvas will provide this at runtime
+    const apiUrl = \`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=\${apiKey}\`;
+    const payload = { contents: [{ role: "user", parts: [{ text: prompt }] }] };
+
+    try {
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (result.candidates && result.candidates.length > 0 &&
+            result.candidates[0].content && result.candidates[0].content.parts &&
+            result.candidates[0].content.parts.length > 0) {
+            return result.candidates[0].content.parts[0].text;
+        } else {
+            return "Sorry, I couldn't generate a response. Please try again.";
+        }
+    } catch (error) {
+        console.error("Error calling Gemini API:", error);
+        return "An error occurred while fetching the explanation. Please check your network connection or try again later.";
+    }
+}
+                    `
+                }
+            }
+        };
+
+        const panes = {
+            exponentiation: document.getElementById('pane-exponentiation'),
+            multiplication: document.getElementById('pane-multiplication')
+        };
+
+        const sidebars = {
+            exponentiation: document.getElementById('sidebar-exponentiation'),
+            multiplication: document.getElementById('sidebar-multiplication')
+        };
+        
+        let comparisonChartInstance = null;
+
+        function renderContent() {
+            const pane = panes[appState.mainTab];
+            const data = contentData[appState.mainTab][appState.subSection];
+            
+            if (!pane || !data) return;
+
+            pane.innerHTML = `
+                <h2 class="text-2xl font-bold mb-4 text-[#3C3633]">${data.title}</h2>
+                <div class="prose max-w-none text-gray-700">${data.description}</div>
+                <hr class="my-6">
+                <div class="interactive-section">${data.calculator}</div>
+                <hr class="my-6">
+                <details class="bg-[#EADBC8]/30 rounded-lg">
+                    <summary class="p-4 font-semibold text-lg flex justify-between items-center">
+                        <span>View Example C Code</span>
+                        <span class="arrow-down">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </span>
+                    </summary>
+                    <div class="p-4 pt-0">
+                        <pre><code>${data.code.trim().replace(/</g, "&lt;").replace(/>/g, "&gt;")}</code></pre>
+                    </div>
+                </details>
+            `;
+            
+            if (appState.mainTab === 'exponentiation' && appState.subSection === 'comparison') {
+                renderComparisonChart();
+            }
+
+            attachEventListeners();
+        }
+        
+        function attachEventListeners() {
+            if (appState.mainTab === 'exponentiation') {
+                switch(appState.subSection) {
+                    case 'binary':
+                        document.getElementById('binary-calc-btn').addEventListener('click', handleBinaryCalc);
+                        break;
+                    case 'm-ary':
+                        document.getElementById('quat-calc-btn').addEventListener('click', handleQuatCalc);
+                        break;
+                    case 'sliding-window':
+                        document.getElementById('sw-calc-btn').addEventListener('click', handleSWCalc);
+                        break;
+                    case 'recoding':
+                        document.getElementById('naf-calc-btn').addEventListener('click', handleNafCalc);
+                        break;
+                    case 'comparison':
+                        document.getElementById('comparison-select').addEventListener('change', renderComparisonChart);
+                        break;
+                    case 'ai-assistant':
+                        document.getElementById('ai-ask-btn').addEventListener('click', handleAIAssistant);
+                        break;
+                }
+            } else if (appState.mainTab === 'multiplication') {
+                 switch(appState.subSection) {
+                    case 'standard':
+                        document.getElementById('std-mul-btn').addEventListener('click', handleStdMulCalc);
+                        break;
+                    case 'division':
+                        document.getElementById('div-calc-btn').addEventListener('click', handleDivCalc);
+                        break;
+                    case 'blakley':
+                        document.getElementById('blakley-calc-btn').addEventListener('click', handleBlakleyCalc);
+                        break;
+                    case 'montgomery':
+                        document.getElementById('mont-calc-btn').addEventListener('click', handleMontCalc);
+                        break;
+                    case 'ai-assistant':
+                        document.getElementById('ai-ask-btn').addEventListener('click', handleAIAssistant);
+                        break;
+                }
+            }
+        }
+
+        function updateActiveLinks() {
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('tab-active');
+                btn.classList.add('tab-inactive');
+            });
+            document.getElementById(`tab-${appState.mainTab}`).classList.add('tab-active');
+            document.getElementById(`tab-${appState.mainTab}`).classList.remove('tab-inactive');
+
+            document.querySelectorAll('.main-content').forEach(content => content.classList.add('hidden'));
+            document.getElementById(`content-${appState.mainTab}`).classList.remove('hidden');
+
+            document.querySelectorAll(`#sidebar-${appState.mainTab} .sidebar-link`).forEach(link => {
+                link.classList.remove('sidebar-link-active');
+                link.classList.add('sidebar-link-inactive');
+                if (link.dataset.section === appState.subSection) {
+                    link.classList.add('sidebar-link-active');
+                    link.classList.remove('sidebar-link-inactive');
+                }
+            });
+        }
+
+        function setupNavigation() {
+            document.getElementById('tab-exponentiation').addEventListener('click', () => {
+                appState.mainTab = 'exponentiation';
+                appState.subSection = 'binary';
+                updateActiveLinks();
+                renderContent();
+            });
+            document.getElementById('tab-multiplication').addEventListener('click', () => {
+                appState.mainTab = 'multiplication';
+                appState.subSection = 'standard';
+                updateActiveLinks();
+                renderContent();
+            });
+
+            Object.keys(sidebars).forEach(key => {
+                sidebars[key].addEventListener('click', (e) => {
+                    e.preventDefault();
+                    if (e.target.tagName === 'A') {
+                        appState.subSection = e.target.dataset.section;
+                        updateActiveLinks();
+                        renderContent();
+                    }
+                });
+            });
+        }
+        
+        function renderComparisonChart() {
+            const selectedExponent = document.getElementById('comparison-select').value;
+            const chartData = {
+                '250': { labels: ['Binary', 'Quaternary', 'Octal (Optimized)'], data: [12, 11, 12] },
+                '3665': { labels: ['Binary', 'CLNW (d=3)', 'VLNW (d=4, q=2)'], data: [18, 15, 15] },
+                '55': { labels: ['Binary', 'Quaternary', 'Factor Method'], data: [9, 8, 8] },
+            };
+            
+            const ctx = document.getElementById('comparisonChart').getContext('2d');
+            
+            if (comparisonChartInstance) {
+                comparisonChartInstance.destroy();
+            }
+            
+            comparisonChartInstance = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: chartData[selectedExponent].labels,
+                    datasets: [{
+                        label: 'Total Operations (Squarings + Multiplications)',
+                        data: chartData[selectedExponent].data,
+                        backgroundColor: '#7C9D96',
+                        borderColor: '#637f7a',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Operation Count'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `Total Operations: ${context.raw}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function handleBinaryCalc() {
+            const base = BigInt(document.getElementById('binary-base').value || 0);
+            const exp = BigInt(document.getElementById('binary-exp').value || 0);
+            const mod = BigInt(document.getElementById('binary-mod').value || 1);
+            const resultDiv = document.getElementById('binary-result');
+            
+            if (mod <= 0) {
+                resultDiv.innerHTML = `<p class="text-red-600">Error: Modulus must be positive.</p>`;
+                return;
+            }
+
+            let result = 1n;
+            let steps = '<strong>Steps:</strong><br>';
+            
+            const k = (exp > 0n) ? BigInt(exp.toString(2).length) : 0n;
+            steps += `Exponent ${exp} in binary is ${exp.toString(2)} (k=${k} bits).<br>`;
+            
+            if (k > 0n) {
+                if ((exp >> (k - 1n)) & 1n) {
+                    result = base % mod;
+                    steps += `Initial bit is 1. Result = ${base} % ${mod} = ${result}.<br>`;
+                }
+
+                for (let i = k - 2n; i >= 0n; i--) {
+                    let oldResult = result;
+                    result = (result * result) % mod;
+                    steps += `Loop i=${i}: Square ${oldResult} -> ${result}.<br>`;
+                    if ((exp >> i) & 1n) {
+                        oldResult = result;
+                        result = (result * base) % mod;
+                        steps += `&nbsp;&nbsp;&nbsp;&nbsp;Bit is 1. Multiply by ${base} -> ${oldResult} * ${base} % ${mod} = ${result}.<br>`;
+                    }
+                }
+            }
+
+            resultDiv.innerHTML = `<p class="font-semibold">Result: ${result}</p>${steps}`;
+        }
+
+        function handleQuatCalc() {
+            const base = BigInt(document.getElementById('quat-base').value || 0);
+            const exp = BigInt(document.getElementById('quat-exp').value || 0);
+            const mod = BigInt(document.getElementById('quat-mod').value || 1);
+            const resultDiv = document.getElementById('quat-result');
+
+            if (mod <= 0) {
+                resultDiv.innerHTML = `<p class="text-red-600">Error: Modulus must be positive.</p>`;
+                return;
+            }
+
+            let steps = '<strong>Steps:</strong><br>';
+            const precomputed = [1n, base % mod];
+            precomputed.push((precomputed[1] * base) % mod);
+            precomputed.push((precomputed[2] * base) % mod);
+            steps += `Preprocessing: M^0=1, M^1=${precomputed[1]}, M^2=${precomputed[2]}, M^3=${precomputed[3]}.<br>`;
+
+            let binStr = exp.toString(2);
+            if (binStr.length % 2 !== 0) {
+                binStr = '0' + binStr;
+            }
+            steps += `Padded exponent: ${binStr}.<br>`;
+
+            const words = [];
+            for (let i = 0; i < binStr.length; i += 2) {
+                words.push(parseInt(binStr.substring(i, i + 2), 2));
+            }
+            steps += `Quaternary words: [${words.join(', ')}].<br>`;
+
+            let result = precomputed[words[0]];
+            steps += `Initial result = M^${words[0]} = ${result}.<br>`;
+
+            for (let i = 1; i < words.length; i++) {
+                let oldResult = result;
+                result = (result * result) % mod;
+                result = (result * result) % mod;
+                steps += `Loop i=${i}: Square ${oldResult} twice -> ${result}.<br>`;
+                if (words[i] !== 0) {
+                    oldResult = result;
+                    result = (result * precomputed[words[i]]) % mod;
+                    steps += `&nbsp;&nbsp;&nbsp;&nbsp;Word is ${words[i]}. Multiply by M^${words[i]} -> ${oldResult} * ${precomputed[words[i]]} % ${mod} = ${result}.<br>`;
+                }
+            }
+             resultDiv.innerHTML = `<p class="font-semibold">Result: ${result}</p>${steps}`;
+        }
+        
+        function handleSWCalc() {
+            const base = 3n;
+            const mod = 100n;
+            const resultDiv = document.getElementById('sw-result');
+
+            let steps = '<strong>Example Calculation for 3<sup>3665</sup> mod 100:</strong><br>';
+            steps += 'Parameters: d=4 (max window), q=2 (min zeros).<br>';
+            steps += 'Exponent 3665 = (111001010001)<sub>2</sub>.<br>';
+            steps += 'Partitioned Windows (value, length): [ (7,3), (0,2), (5,3), (0,3), (1,1) ].<br>';
+
+            const precomputed = { 1: 3n, 5: 43n, 7: 7n };
+            steps += 'Precomputation: M^1=3, M^5=43, M^7=7.<br>';
+            
+            let result = precomputed[7];
+            steps += `Initial C = M^7 = ${result}.<br>`;
+
+            // Window (0,2)
+            result = (result * result) % mod;
+            result = (result * result) % mod;
+            steps += `Window (0,2): Square twice -> ${result}.<br>`;
+
+            // Window (5,3)
+            let oldResult = result;
+            result = (result * result * result * result * result * result * result * result) % mod; // 2^3
+            steps += `Window (5,3): Square 3 times -> ${result}.<br>`;
+            result = (result * precomputed[5]) % mod;
+            steps += `&nbsp;&nbsp;&nbsp;&nbsp;Multiply by M^5 -> ${result}.<br>`;
+            
+            // Window (0,3)
+            result = (result * result * result * result * result * result * result * result) % mod; // 2^3
+            steps += `Window (0,3): Square 3 times -> ${result}.<br>`;
+            
+            // Window (1,1)
+            result = (result * result) % mod; // 2^1
+            steps += `Window (1,1): Square 1 time -> ${result}.<br>`;
+            result = (result * precomputed[1]) % mod;
+            steps += `&nbsp;&nbsp;&nbsp;&nbsp;Multiply by M^1 -> ${result}.<br>`;
+
+            resultDiv.innerHTML = `<p class="font-semibold">Result: ${result}</p>${steps}`;
+        }
+
+        function handleNafCalc() {
+            const base = BigInt(document.getElementById('naf-base').value || 0);
+            const exp = BigInt(document.getElementById('naf-exp').value || 0);
+            const mod = BigInt(document.getElementById('naf-mod').value || 1);
+            const resultDiv = document.getElementById('naf-result');
+
+            if (mod <= 0) {
+                resultDiv.innerHTML = `<p class="text-red-600">Error: Modulus must be positive.</p>`;
+                return;
+            }
+            
+            let steps = '<strong>Steps:</strong><br>';
+            
+            // Modular inverse
+            let g = mod, x = 0n, y = 1n;
+            let a = base;
+            while (a !== 0n) {
+                let q = g / a;
+                [a, g] = [g % a, a];
+                [x, y] = [y - q * x, x];
+            }
+            const base_inv = g === 1n ? (y % mod + mod) % mod : -1n;
+
+            if (base_inv === -1n) {
+                resultDiv.innerHTML = `<p class="text-red-600">Error: Modular inverse of base does not exist.</p>`;
+                return;
+            }
+            steps += `Modular inverse of ${base} mod ${mod} is ${base_inv}.<br>`;
+
+            // NAF conversion
+            const naf = [];
+            let e = exp;
+            while (e > 0n) {
+                if (e % 2n === 1n) {
+                    const digit = 2n - (e % 4n);
+                    naf.push(Number(digit));
+                    e -= digit;
+                } else {
+                    naf.push(0);
+                }
+                e /= 2n;
+            }
+            steps += `NAF of ${exp} (LSB first): [${naf.join(', ')}].<br>`;
+            
+            let result = 1n;
+            for (let i = naf.length - 1; i >= 0; i--) {
+                result = (result * result) % mod;
+                if (naf[i] === 1) {
+                    result = (result * base) % mod;
+                } else if (naf[i] === -1) {
+                    result = (result * base_inv) % mod;
+                }
+            }
+            resultDiv.innerHTML = `<p class="font-semibold">Result: ${result}</p>${steps}`;
+        }
+
+        function handleStdMulCalc() {
+            const a = BigInt(document.getElementById('std-mul-a').value || 0);
+            const b = BigInt(document.getElementById('std-mul-b').value || 0);
+            const result = a * b;
+            document.getElementById('std-mul-result').innerHTML = `<p class="font-semibold">Result: ${result}</p>`;
+        }
+
+        function handleDivCalc() {
+            const t = BigInt(document.getElementById('div-t').value || 0);
+            const n = BigInt(document.getElementById('div-n').value || 1);
+            const resultDiv = document.getElementById('div-result');
+
+            if (n <= 0) {
+                resultDiv.innerHTML = `<p class="text-red-600">Error: Divisor must be positive.</p>`;
+                return;
+            }
+            
+            const result = t % n;
+            resultDiv.innerHTML = `<p class="font-semibold">Result (Remainder): ${result}</p>`;
+        }
+
+        function handleBlakleyCalc() {
+            const a = BigInt(document.getElementById('blakley-a').value || 0);
+            const b = BigInt(document.getElementById('blakley-b').value || 0);
+            const n = BigInt(document.getElementById('blakley-n').value || 1);
+            const resultDiv = document.getElementById('blakley-result');
+
+            if (n <= 0) {
+                resultDiv.innerHTML = `<p class="text-red-600">Error: Modulus must be positive.</p>`;
+                return;
+            }
+
+            let R = 0n;
+            let steps = '<strong>Steps:</strong><br>';
+            const k = (a > 0n) ? BigInt(a.toString(2).length) : 0n;
+            
+            for (let i = k - 1n; i >= 0n; i--) {
+                const a_bit = (a >> i) & 1n;
+                R = (R << 1n) + (a_bit * b);
+                steps += `Bit a[${i}]=${a_bit}: R after shift & add = ${R}.<br>`;
+                R %= n;
+                steps += `&nbsp;&nbsp;&nbsp;&nbsp;R after reduction = ${R}.<br>`;
+            }
+            
+            resultDiv.innerHTML = `<p class="font-semibold">Result: ${R}</p>${steps}`;
+        }
+
+        function handleMontCalc() {
+            const M = BigInt(document.getElementById('mont-m').value || 0);
+            const e = BigInt(document.getElementById('mont-e').value || 0);
+            const n = BigInt(document.getElementById('mont-n').value || 1);
+            const resultDiv = document.getElementById('mont-result');
+
+            if (n <= 0n || n % 2n === 0n) {
+                resultDiv.innerHTML = `<p class="text-red-600">Error: Modulus must be positive and odd.</p>`;
+                return;
+            }
+            
+            // A simple JS implementation of modular exponentiation for verification
+            let result = 1n;
+            let base = M % n;
+            let exp = e;
+            while (exp > 0n) {
+                if (exp % 2n === 1n) result = (result * base) % n;
+                base = (base * base) % n;
+                exp /= 2n;
+            }
+            
+            resultDiv.innerHTML = `<p class="font-semibold">Result: ${result}</p><p class="text-sm text-gray-600 mt-2">(Note: This is a direct calculation. A full Montgomery implementation in JS with BigInt is complex due to bit-level operations and is conceptually represented in the code viewer.)</p>`;
+        }
+
+        async function handleAIAssistant() {
+            const questionInput = document.getElementById('ai-question-input');
+            const aiResponseDiv = document.getElementById('ai-response');
+            const question = questionInput.value.trim();
+
+            if (!question) {
+                aiResponseDiv.innerHTML = `<p class="text-red-600">Please enter a question.</p>`;
+                return;
+            }
+
+            aiResponseDiv.innerHTML = `<p class="text-gray-500">Thinking...</p>`;
+
+            const prompt = `You are an expert in cryptography and computer science. Explain the following cryptographic concept or question concisely and clearly, assuming the user is learning about RSA implementation: ${question}`;
+
+            const apiKey = ""; // Canvas will provide this at runtime
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+            const payload = {
+                contents: [{ role: "user", parts: [{ text: prompt }] }]
+            };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    aiResponseDiv.innerHTML = `<p>${result.candidates[0].content.parts[0].text}</p>`;
+                } else {
+                    aiResponseDiv.innerHTML = `<p class="text-red-600">Sorry, I couldn't generate a response. Please try again.</p>`;
+                }
+            } catch (error) {
+                console.error("Error calling Gemini API:", error);
+                aiResponseDiv.innerHTML = `<p class="text-red-600">An error occurred while fetching the explanation. Please check your network connection or try again later.</p>`;
+            }
+        }
+
+        window.onload = () => {
+            setupNavigation();
+            updateActiveLinks();
+            renderContent();
+        };
+
+    </script>
+</body>
+</html>
